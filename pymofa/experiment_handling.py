@@ -435,9 +435,9 @@ class experiment_handling(object):
                     tag = self.status.Get_tag()
                 except:
                     source = self.status.Get_source()
-                    traceback.print_exc()
-                    print('failed to get results from node {} for task {}'.format(source, self.node_tasks[source]))
                     tag = tags.FAILED
+                    traceback.print_exc()
+                    print('failed to get results from node {} for task {}.'.format(source, self.node_tasks[source]))
                 if tag == tags.READY and source is not None:
                     # node ready to work.
                     if task_index < n_tasks:
@@ -460,7 +460,9 @@ class experiment_handling(object):
                 elif tag == tags.EXIT:
                     closed_nodes += 1
                 elif tag == tags.FAILED:
-                    print('failed to get data from slave', flush=True)
+                    print('failed, resubmitting task {}'
+                          .format(self.node_tasks[source]), flush=True)
+                    self.send(self.node_tasks[source], dest=source, tag=tags.START)
             if not no_output:
                 df = df.unstack(level='key')
                 df.columns = df.columns.droplevel()
