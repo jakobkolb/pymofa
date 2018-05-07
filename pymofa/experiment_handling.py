@@ -143,6 +143,9 @@ class experiment_handling(object):
         # and paths to save the results.
         self.tasks = []
 
+        # keep track of which node is working on which task
+        self.node_tasks = {}
+
         for s in range(self.sample_size):
             for p, kwp in zip(self.parameter_combinations,
                               self.kwparameter_combinations):
@@ -154,6 +157,56 @@ class experiment_handling(object):
                         self.tasks.append((p, filename))
 
         self.filenames = []
+
+        # wrapping comm functions to get log their behavior.
+        self.recv = self.log_comm_recv(self.comm.recv)
+        self.send = self.log_comm_send(self.comm.send)
+
+    def log_comm_recv(self, comm_func):
+        import logging
+        logging.basicConfig(filename='{}comm.log'.format(self.path_res), level=logging.INFO)
+
+        local_id = 'Node {}'.format(self.rank) if not self.rank == 0 else 'Master'
+
+        def recv_wrapper(*args, **kwargs):
+            tag = kwargs['status'].Get_tag()
+            source = kwargs['status'].Get_source()
+
+            rtn = comm_func(*args, **kwargs)
+
+            if tag == tags.DONE:
+                logging.info('{} received results from Node {}'.format(local_id, source))
+            elif tag == tags.START and rtn is not None:
+                logging.info('{} received task {}'.format(local_id, rtn[0]))
+
+            return rtn
+
+        return recv_wrapper
+
+    def log_comm_send(self, comm_func):
+        import logging
+        logging.basicConfig(filename='{}comm.log'.format(self.path_res), level=logging.INFO)
+
+        local_id = 'Node {}'.format(self.rank) if not self.rank == 0 else 'Master'
+
+        def send_wrapper(*args, **kwargs):
+            dest = kwargs['dest']
+            tag = kwargs['tag']
+            if tag == tags.START:
+                params, fname = args[0]
+                logging.info('{} sent task {} to Node {} with tag {}'
+                             .format(local_id, params, dest, tag))
+            elif tag == tags.DONE:
+                if type(args[0]) is not int:
+                    mx, key = args[0][:2]
+                else:
+                    mx = args[0]
+                logging.info('{} sent results of {} to Master with tag {}'.format(local_id, mx, tag))
+            else:
+                pass
+            return comm_func(*args, **kwargs)
+
+        return send_wrapper
 
     def compute(self, run_func, skipbadruns=False):
         """
@@ -207,22 +260,22 @@ class experiment_handling(object):
             tasks_completed = 0
             closed_nodes = 0
             while closed_nodes < self.n_nodes:
-                n_return = self.comm.recv(source=MPI.ANY_SOURCE,
+                n_return = self.recv(source=MPI.ANY_SOURCE,
                                           tag=MPI.ANY_TAG, status=self.status)
                 source = self.status.Get_source()
                 tag = self.status.Get_tag()
                 if tag == tags.READY:
                     # node is ready, can take new task
                     if task_index < len(self.tasks):
-                        self.comm.send(self.tasks[task_index], dest=source,
+                        self.send(self.tasks[task_index], dest=source,
                                        tag=tags.START)
                         task_index += 1
                     else:
-                        self.comm.send(None, dest=source, tag=tags.EXIT)
+                        self.send(None, dest=source, tag=tags.EXIT)
                 elif tag == tags.FAILED:
                     # node failed to complete.
                     # retry (failed runs send their task as return)
-                    self.comm.send(n_return, dest=source, tag=tags.START)
+                    self.send(n_return[0], dest=source, tag=tags.START)
                 elif tag == tags.DONE:
                     # node succeeded
                     tasks_completed += 1
@@ -237,8 +290,8 @@ class experiment_handling(object):
             # Nodes work as follows:
             # name = MPI.Get_processor_name() <-- unused variable
             while True:
-                self.comm.send(None, dest=self.master, tag=tags.READY)
-                task = self.comm.recv(source=self.master, tag=MPI.ANY_TAG,
+                self.send(None, dest=self.master, tag=tags.READY)
+                task = self.recv(source=self.master, tag=MPI.ANY_TAG,
                                       status=self.status)
                 tag = self.status.Get_tag()
 
@@ -250,13 +303,13 @@ class experiment_handling(object):
                     else:
                         result = run_func(*params, filename=filename)
                     if result >= 0:
-                        self.comm.send(result, dest=self.master, tag=tags.DONE)
+                        self.send((params, result), dest=self.master, tag=tags.DONE)
                     else:
-                        self.comm.send(task, dest=self.master, tag=tags.FAILED)
+                        self.send((task, result), dest=self.master, tag=tags.FAILED)
                 elif tag == tags.EXIT:
                     break
 
-            self.comm.send(None, dest=self.master, tag=tags.EXIT)
+            self.send(None, dest=self.master, tag=tags.EXIT)
 
         self.comm.Barrier()
 
@@ -284,6 +337,7 @@ class experiment_handling(object):
             tell resave that eva will not yield any output.
 
         """
+
         # ALL NODES NEED TO KNOW WHETHER EVA RETURNS A DATAFRAME.
 
         # First, prepare list of effective parameter combinations for MultiIndex
@@ -373,16 +427,16 @@ class experiment_handling(object):
                 # master keeps subordinate nodes buzzy:
                 old_source = self.status.Get_source()
                 try:
-                    data = self.comm.recv(source=MPI.ANY_SOURCE,
+                    data = self.recv(source=MPI.ANY_SOURCE,
                                           tag=MPI.ANY_TAG,
                                           status=self.status)
 
                     source = self.status.Get_source()
                     tag = self.status.Get_tag()
                 except:
+                    source = self.status.Get_source()
                     traceback.print_exc()
-                    print('comparing sources', old_source, self.status.Get_source())
-                    source = None
+                    print('failed to get results from node {} for task {}'.format(source, self.node_tasks[source]))
                     tag = tags.FAILED
                 if tag == tags.READY and source is not None:
                     # node ready to work.
@@ -390,11 +444,12 @@ class experiment_handling(object):
                         # if there is work, distribute it
                         p_index, k_index = divmod(task_index, len(list(eva.keys())))
                         task = (self.parameter_combinations[p_index], list(eva.keys())[k_index])
-                        self.comm.send(task, dest=source, tag=tags.START)
+                        self.node_tasks[source] = task
+                        self.send(task, dest=source, tag=tags.START)
                         task_index += 1
                     else:
                         # if not, release worker
-                        self.comm.send(None, dest=source, tag=tags.EXIT)
+                        self.send(None, dest=source, tag=tags.EXIT)
                 elif tag == tags.DONE:
                     (mx, key, eva_return) = data
                     if not no_output:
@@ -415,8 +470,8 @@ class experiment_handling(object):
         if self.amNode:
             # Nodes work as follows:
             while True:
-                self.comm.send(None, dest=self.master, tag=tags.READY)
-                task = self.comm.recv(source=self.master, tag=MPI.ANY_TAG, status=self.status)
+                self.send(None, dest=self.master, tag=tags.READY)
+                task = self.recv(source=self.master, tag=MPI.ANY_TAG, status=self.status)
                 tag = self.status.Get_tag()
                 if tag == tags.START:
                     # go work:
@@ -431,7 +486,7 @@ class experiment_handling(object):
                                                           fnames=fnames,
                                                           process_df=process_df)
 
-                    self.comm.send((mx, key, eva_return),
+                    self.send((mx, key, eva_return),
                                    dest=self.master,
                                    tag=tags.DONE)
                 elif tag == tags.EXIT:
