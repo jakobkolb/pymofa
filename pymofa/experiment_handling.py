@@ -451,7 +451,10 @@ class experiment_handling(object):
                         # if not, release worker
                         self.send(None, dest=source, tag=tags.EXIT)
                 elif tag == tags.DONE:
-                    (mx, key, eva_return) = data
+                    try:
+                        (mx, key, eva_return) = data
+                    except:
+                        print(data)
                     if not no_output:
                         df = df.append(eva_return)
                     tasks_completed += 1
