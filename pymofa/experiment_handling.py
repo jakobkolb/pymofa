@@ -45,7 +45,7 @@ class GracefulKiller:
     first_killer = None
 
     def __init__(self):
-        print('setting killer to {}'.format(self))
+        
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
         if self.first_killer is None:
@@ -139,7 +139,6 @@ class experiment_handling(object):
         self.index = {i: run_func.__code__.co_varnames[i]
                       for i in range(run_func.__code__.co_argcount)}
 
-        self.path_raw = self._treat_path(path_raw)
 
         # load mpi4py MPI environment and get size and ranks
         self.comm = MPI.COMM_WORLD
@@ -166,11 +165,13 @@ class experiment_handling(object):
             self.amMaster = False
             self.amNode = True
 
+        self.path_raw = self._treat_path(path_raw)
+
         # only used in resave (to be deleted?)
         self.index_names = [self.index[key] for key in range(len(self.index))]
 
     @staticmethod
-    def _treat_path(path_raw):
+    def _treat_path(path_raw: str):
 
         if path_raw[-1] == "/":
             real_path_raw = path_raw[0:-1] + ".h5"
@@ -183,7 +184,11 @@ class experiment_handling(object):
         # check, if path exists. If not, create.
         dirpath = os.path.dirname(real_path_raw)
         if not os.path.exists(dirpath):
-            os.makedirs(dirpath)
+            try:
+                os.makedirs(dirpath)
+            except FileExistsError:
+                # if file exists (due to race condition), proceed.
+                pass
 
         return real_path_raw
 
@@ -523,7 +528,6 @@ class experiment_handling(object):
 
             # appending to hdf5 store, but only if the run is not about to be terminated.
             if not self.killer.kill_now:
-                print('saving, {}, {}'.format(self.killer.kill_now, self.killer))
                 try:
                     with SafeHDFStore(self.path_raw, mode="a") as store:
                         store.append("dat", mrfs, format='table', data_columns=True)
