@@ -16,12 +16,18 @@ Explore Parameterspace3D
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-mpl.use('Agg')
-mpl.style.use("ggplot")
+# mpl.use('Agg')
+# mpl.style.use("ggplot")
 
 
-def explore_Parameterspace(TwoDFrame, title="",
-                           cmap='RdBu', norm=None, vmin=None, vmax=None):
+def explore_Parameterspace(TwoDFrame,
+                           title="",
+                           cmap='viridis',
+                           colorbar=True,
+                           norm=None,
+                           vmin=None,
+                           vmax=None,
+                           ax=None):
     """
     Explore variables in a 2-dim Parameterspace.
 
@@ -37,6 +43,8 @@ def explore_Parameterspace(TwoDFrame, title="",
         Minimum value of the colormap (Default: None)
     vmax : float
         Maximum vlaue of the colormap (Defualt: None)
+    ax : mpl axis
+        optional
 
     Examples
     --------
@@ -48,21 +56,26 @@ def explore_Parameterspace(TwoDFrame, title="",
     """
     xparams = TwoDFrame.columns.values
     yparams = TwoDFrame.index.values
+
+    assert type(yparams[0]) != tuple, "Be aware of multi indicies"
+    assert type(xparams[0]) != tuple, "Be aware of multi indicies"
+
     values = TwoDFrame.values
 
     X, Y = _create_meshgrid(xparams, yparams)
-    fig = plt.figure()
-    c = plt.pcolormesh(X, Y, values, cmap=cmap, norm=norm, vmin=vmin,
-                       vmax=vmax)
-    plt.colorbar(c, orientation="vertical")
-    plt.xlim(np.min(X), np.max(X))
-    plt.ylim(np.min(Y), np.max(Y))
-    plt.xlabel(TwoDFrame.columns.name)
-    plt.ylabel(TwoDFrame.index.name)
-    plt.title(title)
-    plt.tight_layout()
 
-    return fig
+    if ax is  None:
+        fig, ax = plt.subplots()
+    c = ax.pcolormesh(X, Y, values, cmap=cmap, norm=norm, vmin=vmin,
+                       vmax=vmax)
+    if colorbar:
+        plt.colorbar(c, ax=ax, orientation="vertical")
+    ax.set_xlim(np.min(X), np.max(X))
+    ax.set_ylim(np.min(Y), np.max(Y))
+    ax.set_xlabel(TwoDFrame.columns.name)
+    ax.set_ylabel(TwoDFrame.index.name)
+
+    return c
 
 
 def _create_meshgrid(x, y):
