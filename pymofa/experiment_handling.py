@@ -151,6 +151,8 @@ class experiment_handling(object):
         self.nodes = list(range(1, self.size))
         self.n_nodes = self.size - 1
 
+        self.path_raw = self._treat_path(path_raw)
+
         # tell process whether it is master or slave
         if self.rank == 0:
             self.amMaster = True
@@ -165,7 +167,6 @@ class experiment_handling(object):
             self.amMaster = False
             self.amNode = True
 
-        self.path_raw = self._treat_path(path_raw)
 
         # only used in resave (to be deleted?)
         self.index_names = [self.index[key] for key in range(len(self.index))]
