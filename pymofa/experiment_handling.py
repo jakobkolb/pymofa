@@ -122,6 +122,10 @@ class experiment_handling(object):
             absolute path to the raw data of the computations
         """
 
+        # input sanitation:
+        if not isinstance(runfunc_output, list):
+            runfunc_output = [runfunc_output]
+
         print('initializing pymofa experiment handle')
 
         # setup to watch for SIGTERM, but only, for the first class instanciation.
@@ -475,15 +479,20 @@ class experiment_handling(object):
 
         self.comm.Barrier()
 
-    def _get_store_index_names(self):
+    def _get_store_index_names(self, i=0):
         """
-        Obtain the names of parameters, sample and result index.
+        Obtain the names of parameters, sample and result index
+        for ith dataframe in the return of run function
+        Parameters:
+        ----------
+        i: int
+            index in self.runfunc_output
         """
-        # TODO: take care for runfunc_output
+
         param_names = self.run_func.__code__ \
                           .co_varnames[:self.run_func.__code__.co_argcount]
         mix_names = param_names + ("sample",) + \
-            tuple(self.runfunc_output.index.names)
+                    tuple(self.runfunc_output[i].index.names)
 
         return mix_names
 
@@ -494,6 +503,8 @@ class experiment_handling(object):
 
         # task.name indicates the index number of the all tasks (at) dataframe
         # hereby I refere to the initial parameter_combs to avoid type problems
+
+        # tsk: tuple of (parameter combination, sample id)
         tsk = (self.parameter_combinations[int(task.name / self.sample_size)],
                task.name % self.sample_size)
 
@@ -510,33 +521,68 @@ class experiment_handling(object):
                            columns=list(self.index.values()) + ["sample"])
 
         def store_func(run_func_result):
-            assert run_func_result.index.names == \
-                   self.runfunc_output.index.names
-            assert (run_func_result.columns ==
-                    self.runfunc_output.columns).all()
-            # TODO: (maybe) sort columns alphabetically (depends on speed)
+            """
 
-            # OLD
-            ID = [[p] for p in tsk[0]] + [[tsk[1]]]  # last one is sample
-
-            mix = pd.MultiIndex.from_product(
-                ID + [run_func_result.index.values],
-                names=self._get_store_index_names()
-            )
-
-            mrfs = pd.DataFrame(data=run_func_result.values,
-                                index=mix, columns=run_func_result.columns)
+            Parameters
+            ----------
+            run_func_result: pandas dataframe or list thereof
+                output of run function that is supposed to be stored in hd5
+            """
+            print(f'got {len(run_func_result)} dataframes')
+            # input sanitation:
+            if not isinstance(run_func_result, list):
+                run_func_result = [run_func_result]
+                print('havent got a list, making one')
 
             # appending to hdf5 store, but only if the run is not about to be terminated.
             if not self.killer.kill_now:
                 try:
                     with SafeHDFStore(self.path_raw, mode="a") as store:
-                        store.append("dat", mrfs, format='table', data_columns=True)
+                        # save results of run function
+                        for i, result in enumerate(run_func_result):
 
-                    with SafeHDFStore(self.path_raw, mode="a") as store:
-                        store.append("ct", tdf, format='table', data_columns=True)
-                    return 1
+                            # check if indices of return dataframe match those in hd5
+                            assert result.index.names == self.runfunc_output[i].index.names
+                            assert (result.columns == self.runfunc_output[i].columns).all()
+
+                            # TODO: (maybe) sort columns alphabetically (depends on speed)
+
+                            # ID of result in terms of parameter values and sample id
+                            ID = [[p] for p in tsk[0]] + [[tsk[1]]]  # last one is sample
+
+                            # Multiindex combined from parameter values and index of
+                            # run func output dataframe
+                            mix = pd.MultiIndex.from_product(ID + [result.index.values],
+                                                             names=self._get_store_index_names(i)
+                                                             )
+                            # create dataframe of results with full index and use convert objects to avoid
+                            # type casting errors that break writing to hd5
+                            mrfs = pd.DataFrame(data=result.values,
+                                                index=mix,
+                                                columns=result.columns).convert_objects(convert_numeric=True)
+
+                            # write results to hd5
+                            store.append(f'dat_{i}', mrfs, format='table', data_columns=True)
+
+                        # mark parameter combination as done
+                        store.append('ct', tdf, format='table', data_columns=True)
+
+                        return 1
+                except ValueError:
+                    print('failed due to value error')
+                    traceback.print_exc(limit=3)
+                    exit(-1)
+                # TODO better exception handling, to only catch the cases where writing failed due to file lock.
+                except TypeError:
+                    print('failed due to type error')
+                    print(mrfs.dtypes)
+                    traceback.print_exc(limit=3, )
+                    return -1
+                except AssertionError:
+                    print(result.index.names, self.runfunc_output[i].index.names)
                 except:
+                    print('failed due to unhandled error')
+                    traceback.print_exc(limit=3)
                     return -1
             else:
                 print('\n no writing due to kill switch', flush=True)
@@ -868,9 +914,14 @@ class experiment_handling(object):
             (optional) a preceding string
 
         """
-        sys.stdout.write("\r")
-        sys.stdout.flush()
-        sys.stdout.write("{} {:.2%}".format(msg, float(i) / float(loop_length)))
+
+        bar_len = 60
+        filled_len = int(round(bar_len * i / float(loop_length)))
+
+        percents = round(100.0 * i / float(loop_length), 1)
+        bar = '=' * filled_len + '-' * (bar_len - filled_len)
+
+        sys.stdout.write('[%s] %s%s ...%s\r' % (bar, percents, '%', msg))
         sys.stdout.flush()
 
         if i == loop_length - 1:
