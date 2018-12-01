@@ -107,7 +107,7 @@ class experiment_handling(object):
         ----------
         run_func : func
             function to set up and execute the pymofa experiment
-        runfunc_output : pd.DataFrame
+        runfunc_output : list[pd.DataFrame]
             dataframe with columns and index named as the run_func will store
             its results. May contain no values.
         parameter_combinations: list[tuples]
@@ -125,8 +125,6 @@ class experiment_handling(object):
         # input sanitation:
         if not isinstance(runfunc_output, list):
             runfunc_output = [runfunc_output]
-
-        print('initializing pymofa experiment handle')
 
         # setup to watch for SIGTERM, but only, for the first class instanciation.
         if experiment_handling.killer is None:
@@ -230,6 +228,8 @@ class experiment_handling(object):
                                                            0: False})
             elif ty == str:
                 at[self.index[k]] = at[self.index[k]].astype(ty)
+            elif ty == list:
+                raise ValueError(f'parameter type is {ty}. please sanitize your parameter combinations')
             else:
                 at[self.index[k]] = pd.to_numeric(at[self.index[k]])
             at["sample"] = pd.to_numeric(at["sample"])
@@ -528,11 +528,11 @@ class experiment_handling(object):
             run_func_result: pandas dataframe or list thereof
                 output of run function that is supposed to be stored in hd5
             """
-            print(f'got {len(run_func_result)} dataframes')
+            # print(f'got {len(run_func_result)} dataframes')
             # input sanitation:
             if not isinstance(run_func_result, list):
                 run_func_result = [run_func_result]
-                print('havent got a list, making one')
+                # print('havent got a list, making one')
 
             # appending to hdf5 store, but only if the run is not about to be terminated.
             if not self.killer.kill_now:
@@ -540,29 +540,33 @@ class experiment_handling(object):
                     with SafeHDFStore(self.path_raw, mode="a") as store:
                         # save results of run function
                         for i, result in enumerate(run_func_result):
+                            if result is not None:
+                                # check if indices of return dataframe match those in hd5
+                                assert result.index.names == self.runfunc_output[i].index.names
+                                assert (result.columns == self.runfunc_output[i].columns).all()
 
-                            # check if indices of return dataframe match those in hd5
-                            assert result.index.names == self.runfunc_output[i].index.names
-                            assert (result.columns == self.runfunc_output[i].columns).all()
+                                # TODO: (maybe) sort columns alphabetically (depends on speed)
 
-                            # TODO: (maybe) sort columns alphabetically (depends on speed)
+                                # ID of result in terms of parameter values and sample id
+                                ID = [[p] for p in tsk[0]] + [[tsk[1]]]  # last one is sample
 
-                            # ID of result in terms of parameter values and sample id
-                            ID = [[p] for p in tsk[0]] + [[tsk[1]]]  # last one is sample
+                                # Multiindex combined from parameter values and index of
+                                # run func output dataframe
+                                mix = pd.MultiIndex.from_product(ID + [result.index.values],
+                                                                 names=self._get_store_index_names(i)
+                                                                 )
+                                # create dataframe of results with full index and use convert objects to avoid
+                                # type casting errors that break writing to hd5
+                                mrfs = pd.DataFrame(data=result.values,
+                                                    index=mix,
+                                                    columns=result.columns,
+                                                    dtype=np.float)
 
-                            # Multiindex combined from parameter values and index of
-                            # run func output dataframe
-                            mix = pd.MultiIndex.from_product(ID + [result.index.values],
-                                                             names=self._get_store_index_names(i)
-                                                             )
-                            # create dataframe of results with full index and use convert objects to avoid
-                            # type casting errors that break writing to hd5
-                            mrfs = pd.DataFrame(data=result.values,
-                                                index=mix,
-                                                columns=result.columns).convert_objects(convert_numeric=True)
+                                # write results to hd5
+                                store.append(f'dat_{i}', mrfs, format='table', data_columns=True)
 
-                            # write results to hd5
-                            store.append(f'dat_{i}', mrfs, format='table', data_columns=True)
+                                # print(f'dat_{i}')
+                                # print(store.select(f'dat_{i}'))
 
                         # mark parameter combination as done
                         store.append('ct', tdf, format='table', data_columns=True)
