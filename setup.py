@@ -9,7 +9,7 @@ from setuptools import setup
 # modifications in the installed package.
 
 setup(name="pymofa",
-      version="0.1.0",
+      version="0.2.0",
       description="PYthon MOdelling FrAmework",
       url="https://github.com/wbarfuss/pymofa",
       author="Copan-group @ PIK",
