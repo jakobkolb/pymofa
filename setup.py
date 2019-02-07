@@ -9,7 +9,7 @@ from setuptools import setup
 # modifications in the installed package.
 
 setup(name="pymofa",
-      version="0.1.0",
+      version="0.2.0",
       description="to be added",
       url="to be added",
       author="Copan-group @ PIK",
