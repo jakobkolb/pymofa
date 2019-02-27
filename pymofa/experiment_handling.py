@@ -91,7 +91,8 @@ class experiment_handling(object):
                  runfunc_output,
                  parameter_combinations,
                  sample_size,
-                 path_raw):
+                 path_raw,
+                 min_itemsize=20):
         """
         Set up the experiment handling class.
 
@@ -120,9 +121,12 @@ class experiment_handling(object):
             size of the ensemble for statistical evaluation
         path_raw : string
             absolute path to the raw data of the computations
+        min_itemsize: int
+            max string length of values in run func return dataframes
         """
 
         print('initializing pymofa experiment handle')
+        self.min_itemsize = min_itemsize
 
         # setup to watch for SIGTERM, but only, for the first class instanciation.
         if experiment_handling.killer is None:
@@ -460,8 +464,10 @@ class experiment_handling(object):
                         # get storage function for finished task
                         sf = self._obtain_store_function(task)
                         # repeatedly try to store results until it works.
+                        # print('trying to save')
                         while sf(result) < 0:
                             pass
+                        # print('saving worked.')
                         # report to master that task is done
                         self.comm.send(task, dest=self.master, tag=tags.DONE)
                     else:
@@ -531,12 +537,13 @@ class experiment_handling(object):
             if not self.killer.kill_now:
                 try:
                     with SafeHDFStore(self.path_raw, mode="a") as store:
-                        store.append("dat", mrfs, format='table', data_columns=True)
+                        store.append("dat", mrfs, format='table', data_columns=True, min_itemsize=self.min_itemsize)
 
                     with SafeHDFStore(self.path_raw, mode="a") as store:
                         store.append("ct", tdf, format='table', data_columns=True)
                     return 1
-                except:
+                except Exception as e:
+                    print(e)
                     return -1
             else:
                 print('\n no writing due to kill switch', flush=True)
