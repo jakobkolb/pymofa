@@ -302,10 +302,13 @@ class experiment_handling(object):
             # Therefore, first get the filenames for the first parameter combination that has output files
             i = 0
             while True:
-                filenames_p0 = np.sort(glob.glob(self.path_raw + self._get_id(self.parameter_combinations[i])))
+                filenames_p0 = np.sort(glob.glob(self.path_raw
+                                                 + self._get_id(self.parameter_combinations[i])))
                 i += 1
                 if len(filenames_p0) > 0:
                     break
+                elif i == len(self.parameter_combinations)-1:
+                    raise FileNotFoundError(f'no file of format {self.path_raw + self._get_id(self.parameter_combinations[i])}')
 
             # and get the eva returns for the first callable for these filenames
             eva_return = self._evaluate_eva(eva,
