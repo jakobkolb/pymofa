@@ -639,6 +639,7 @@ class experiment_handling(object):
                 except AssertionError:
                     print(result.index.names,
                           self.runfunc_output[i].index.names)
+                    return -1
                 except:
                     print('failed due to unhandled error')
                     traceback.print_exc(limit=3)
