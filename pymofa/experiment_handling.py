@@ -641,6 +641,8 @@ class experiment_handling(object):
                 except AssertionError:
                     print(result.index.names,
                           self.runfunc_output[i].index.names)
+                    print(result.columns,
+                          self.runfunc_output[i].columns)
                     return -1
                 except:
                     print('failed due to unhandled error')
