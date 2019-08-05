@@ -129,6 +129,8 @@ class experiment_handling(object):
             max string length of values in run func return dataframes
         """
 
+        self.killed = False
+
         self.min_itemsize = min_itemsize
         # input sanitation:
 
@@ -162,7 +164,9 @@ class experiment_handling(object):
         self.comm = MPI.COMM_WORLD
         self.status = MPI.Status()
         self.size = self.comm.Get_size()
-        self.rank = self.comm.Get_rank()
+        self.rank = self.co
+        
+        self.killed = Falsemm.Get_rank()
 
         # split size of environment in 1 master and n-1 slaves
         self.master = 0
@@ -645,7 +649,11 @@ class experiment_handling(object):
                     traceback.print_exc(limit=3)
                     return -1
             else:
-                print('\n no writing due to kill switch', flush=True)
+                if self.killed = False:
+                    print('\n no writing due to kill switch', flush=True)
+                    self.killed = True
+                else:
+                    pass
 
                 return -2
 
