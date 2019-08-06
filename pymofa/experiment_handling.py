@@ -408,13 +408,18 @@ class experiment_handling(object):
             # name = MPI.Get_processor_name() <-- unused variable
 
             while True:
-                # tell the master node, that slave is there and ready
-                self.comm.send(None, dest=self.master, tag=tags.READY)
-                # get task asigned from the master node
-                task = self.comm.recv(source=self.master,
-                                      tag=MPI.ANY_TAG,
-                                      status=self.status)
-                tag = self.status.Get_tag()
+                try:
+                    # tell the master node, that slave is there and ready
+                    self.comm.send(None, dest=self.master, tag=tags.READY)
+                    # get task asigned from the master node
+                    task = self.comm.recv(source=self.master,
+                                          tag=MPI.ANY_TAG,
+                                          status=self.status)
+                    tag = self.status.Get_tag()
+                    print(f'slave {self.rank} got new task', flush=True)
+                except:
+                    print(f'slave {self.rank} failed to get new task',
+                          flush=True)
                 try:
                     if tag == tags.START:  # go work:
                         # (params, filename) = task
