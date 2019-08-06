@@ -420,6 +420,7 @@ class experiment_handling(object):
                         # (params, filename) = task
                         params = task[list(self.index.values())].values
                         exit_status, result = self.run_func(*params)
+                        print(f'slave {self.rank} got finished task', flus=True)
 
                         if exit_status >= 0:
                             # get storage function for finished task
@@ -428,7 +429,7 @@ class experiment_handling(object):
 
                             while sf(result) < 0:
                                 pass
-                            # print('saving worked.')
+                            print(f'slave {self.rank} saved sucesfully.')
                             # report to master that task is done
                             self.comm.send(task,
                                            dest=self.master,
