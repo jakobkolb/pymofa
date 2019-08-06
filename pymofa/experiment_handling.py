@@ -559,7 +559,9 @@ class experiment_handling(object):
                                 store.append(f'dat_{i}',
                                              mrfs,
                                              format='table',
-                                             data_columns=True)
+                                             index=False,
+                                            # data_columns=True
+                                            )
 
                                 # print(f'dat_{i}')
                                 # print(store.select(f'dat_{i}'))
