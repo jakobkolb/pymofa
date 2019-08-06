@@ -155,6 +155,7 @@ class experiment_handling(object):
         if index is None:
             self.index = {
                 i: run_func.__code__.co_varnames[i]
+
                 for i in range(run_func.__code__.co_argcount)
             }
         else:
@@ -502,6 +503,7 @@ class experiment_handling(object):
                         # get storage function for finished task
                         sf = self._obtain_store_function(task)
                         # repeatedly try to store results until it works.
+
                         while sf(result) < 0:
                             pass
                         # print('saving worked.')
@@ -531,6 +533,7 @@ class experiment_handling(object):
         param_names = tuple(self.index.values())
         mix_names = param_names + ("sample",) + \
             tuple(self.runfunc_output[i].index.names)
+
         return mix_names
 
     def _obtain_store_function(self, task):
@@ -575,17 +578,17 @@ class experiment_handling(object):
             # appending to hdf5 store, but only if the run is not
             # about to be terminated.
 
-            if not self.killer.kill_now:
-                try:
-                    with SafeHDFStore(self.path_raw, mode="a") as store:
-                        # save results of run function
+            for i, result in enumerate(run_func_result):
+                if not self.killer.kill_now:
+                    try:
+                        with SafeHDFStore(self.path_raw, mode="a") as store:
+                            # save results of run function
 
-                        for i, result in enumerate(run_func_result):
                             if result is not None:
                                 # check if indices of return dataframe
                                 # match those in hd5
-                                assert result.index.names == self.runfunc_output[
-                                    i].index.names
+                                assert (result.index.names ==
+                                        self.runfunc_output[i].index.names)
                                 assert (result.columns ==
                                         self.runfunc_output[i].columns).all()
 
@@ -620,40 +623,44 @@ class experiment_handling(object):
                                 # print(f'dat_{i}')
                                 # print(store.select(f'dat_{i}'))
 
-                        # mark parameter combination as done
-                        store.append('ct',
-                                     tdf,
-                                     format='table',
-                                     data_columns=True)
+                    except ValueError:
+                        print('failed due to value error', flush=True)
+                        traceback.print_exc(limit=3)
 
-                        return 1
-                except ValueError:
-                    print('failed due to value error', flush=True)
-                    traceback.print_exc(limit=3)
-                    return -1
-                # TODO better exception handling, to only catch the cases where writing failed due to file lock.
-                except TypeError:
-                    print('failed due to type error', flush=True)
-                    print(mrfs.dtypes)
-                    traceback.print_exc(limit=3, )
+                        return -1
+                    # TODO better exception handling, to only catch the cases where writing failed due to file lock.
+                    except TypeError:
+                        print('failed due to type error', flush=True)
+                        print(mrfs.dtypes)
+                        traceback.print_exc(limit=3, )
 
-                    return -1
-                except AssertionError:
-                    print(result.index.names,
-                          self.runfunc_output[i].index.names, flush=True)
-                    print(result.columns,
-                          self.runfunc_output[i].columns, flush=True)
-                    return -1
-                except:
-                    print('failed due to unhandled error', flush=True)
-                    traceback.print_exc(limit=3)
-                    return -1
-            else:
-                if self.killed is False:
-                    print('\n no writing due to kill switch', flush=True)
-                    self.killed = True
+                        return -1
+                    except AssertionError:
+                        print(result.index.names,
+                              self.runfunc_output[i].index.names, flush=True)
+                        print(result.columns,
+                              self.runfunc_output[i].columns, flush=True)
 
-                return -2
+                        return -1
+                    except:
+                        print('failed due to unhandled error', flush=True)
+                        traceback.print_exc(limit=3)
+
+                        return -1
+                else:
+                    if self.killed is False:
+                        print('\n no writing due to kill switch', flush=True)
+                        self.killed = True
+
+                    return -2
+            with SafeHDFStore(self.path_raw, mode="a") as store:
+                # mark parameter combination as done
+                store.append('ct',
+                             tdf,
+                             format='table',
+                             data_columns=True)
+
+            return 1
 
         return store_func
 
