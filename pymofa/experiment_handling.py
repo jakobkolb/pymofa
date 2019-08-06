@@ -762,7 +762,7 @@ class experiment_handling(object):
         percents = round(100.0 * i / float(loop_length), 1)
         bar = '=' * filled_len + '-' * (bar_len - filled_len)
 
-        sys.stdout.write('[%s] %s%s ...%s\r' % (bar, percents, '%', msg))
+        sys.stdout.write('[%s] %s%s ...%s%s\r' % (bar, percents, '%', msg, i))
         sys.stdout.flush()
 
         if i == loop_length - 1:
