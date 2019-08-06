@@ -420,7 +420,7 @@ class experiment_handling(object):
                         # (params, filename) = task
                         params = task[list(self.index.values())].values
                         exit_status, result = self.run_func(*params)
-                        print(f'slave {self.rank} got finished task', flus=True)
+                        print(f'slave {self.rank} got finished task', flush=True)
 
                         if exit_status >= 0:
                             # get storage function for finished task
