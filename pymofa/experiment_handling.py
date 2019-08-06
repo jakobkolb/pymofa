@@ -416,7 +416,7 @@ class experiment_handling(object):
                                           tag=MPI.ANY_TAG,
                                           status=self.status)
                     tag = self.status.Get_tag()
-                    print(f'slave {self.rank} got new task', flush=True)
+                    print(f'slave {self.rank} got new task {task}', flush=True)
                 except:
                     print(f'slave {self.rank} failed to get new task',
                           flush=True)
