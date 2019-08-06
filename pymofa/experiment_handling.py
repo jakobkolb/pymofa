@@ -444,6 +444,8 @@ class experiment_handling(object):
                 except:
                     print(f'Node {self.rank} died on task {task}', flush=True)
                     traceback.print_exc(limit=3)
+                    sys.stdout.flush()
+                    sys.stderr.flush()
                     self.comm.send(task,
                                    dest=self.master,
                                    tag=tags.FAILED)
