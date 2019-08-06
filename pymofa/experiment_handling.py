@@ -408,33 +408,46 @@ class experiment_handling(object):
             # name = MPI.Get_processor_name() <-- unused variable
 
             while True:
+                # tell the master node, that slave is there and ready
                 self.comm.send(None, dest=self.master, tag=tags.READY)
+                # get task asigned from the master node
                 task = self.comm.recv(source=self.master,
                                       tag=MPI.ANY_TAG,
                                       status=self.status)
                 tag = self.status.Get_tag()
+                try:
+                    if tag == tags.START:  # go work:
+                        # (params, filename) = task
+                        params = task[list(self.index.values())].values
+                        exit_status, result = self.run_func(*params)
 
-                if tag == tags.START:  # go work:
-                    # (params, filename) = task
-                    params = task[list(self.index.values())].values
-                    exit_status, result = self.run_func(*params)
+                        if exit_status >= 0:
+                            # get storage function for finished task
+                            sf = self._obtain_store_function(task)
+                            # repeatedly try to store results until it works.
 
-                    if exit_status >= 0:
-                        # get storage function for finished task
-                        sf = self._obtain_store_function(task)
-                        # repeatedly try to store results until it works.
+                            while sf(result) < 0:
+                                pass
+                            # print('saving worked.')
+                            # report to master that task is done
+                            self.comm.send(task,
+                                           dest=self.master,
+                                           tag=tags.DONE)
+                        else:
+                            # report to master that task has failed
+                            self.comm.send(task,
+                                           dest=self.master,
+                                           tag=tags.FAILED)
+                    elif tag == tags.EXIT:
+                        break
+                except:
+                    print(f'Node {self.rank} died on task {task}', flush=True)
+                    traceback.print_exc(limit=3)
+                    self.comm.send(task,
+                                   dest=self.master,
+                                   tag=tags.FAILED)
 
-                        while sf(result) < 0:
-                            pass
-                        # print('saving worked.')
-                        # report to master that task is done
-                        self.comm.send(task, dest=self.master, tag=tags.DONE)
-                    else:
-                        # report to master that task has failed
-                        self.comm.send(task, dest=self.master, tag=tags.FAILED)
 
-                elif tag == tags.EXIT:
-                    break
 
             self.comm.send(None, dest=self.master, tag=tags.EXIT)
 
