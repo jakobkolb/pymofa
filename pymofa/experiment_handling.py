@@ -628,24 +628,24 @@ class experiment_handling(object):
 
                         return 1
                 except ValueError:
-                    print('failed due to value error')
+                    print('failed due to value error', flush=True)
                     traceback.print_exc(limit=3)
                     exit(-1)
                 # TODO better exception handling, to only catch the cases where writing failed due to file lock.
                 except TypeError:
-                    print('failed due to type error')
+                    print('failed due to type error', flush=True)
                     print(mrfs.dtypes)
                     traceback.print_exc(limit=3, )
 
                     return -1
                 except AssertionError:
                     print(result.index.names,
-                          self.runfunc_output[i].index.names)
+                          self.runfunc_output[i].index.names, flush=True)
                     print(result.columns,
-                          self.runfunc_output[i].columns)
+                          self.runfunc_output[i].columns, flush=True)
                     return -1
                 except:
-                    print('failed due to unhandled error')
+                    print('failed due to unhandled error', flush=True)
                     traceback.print_exc(limit=3)
                     return -1
             else:
