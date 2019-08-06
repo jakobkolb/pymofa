@@ -630,7 +630,7 @@ class experiment_handling(object):
                 except ValueError:
                     print('failed due to value error', flush=True)
                     traceback.print_exc(limit=3)
-                    exit(-1)
+                    return -1
                 # TODO better exception handling, to only catch the cases where writing failed due to file lock.
                 except TypeError:
                     print('failed due to type error', flush=True)
