@@ -27,6 +27,7 @@ import os
 import signal
 import sys
 import traceback
+import time
 
 import numpy as np
 import pandas as pd
@@ -408,24 +409,18 @@ class experiment_handling(object):
             # name = MPI.Get_processor_name() <-- unused variable
 
             while True:
-                try:
-                    # tell the master node, that slave is there and ready
-                    self.comm.send(None, dest=self.master, tag=tags.READY)
-                    # get task asigned from the master node
-                    task = self.comm.recv(source=self.master,
-                                          tag=MPI.ANY_TAG,
-                                          status=self.status)
-                    tag = self.status.Get_tag()
-                    print(f'slave {self.rank} got new task {task}', flush=True)
-                except:
-                    print(f'slave {self.rank} failed to get new task',
-                          flush=True)
+                # tell the master node, that slave is there and ready
+                self.comm.send(None, dest=self.master, tag=tags.READY)
+                # get task asigned from the master node
+                task = self.comm.recv(source=self.master,
+                                      tag=MPI.ANY_TAG,
+                                      status=self.status)
+                tag = self.status.Get_tag()
                 try:
                     if tag == tags.START:  # go work:
                         # (params, filename) = task
                         params = task[list(self.index.values())].values
                         exit_status, result = self.run_func(*params)
-                        print(f'slave {self.rank} got finished task', flush=True)
 
                         if exit_status >= 0:
                             # get storage function for finished task
@@ -433,8 +428,8 @@ class experiment_handling(object):
                             # repeatedly try to store results until it works.
 
                             while sf(result) < 0:
+                                time.sleep(1)
                                 pass
-                            print(f'slave {self.rank} saved sucesfully.')
                             # report to master that task is done
                             self.comm.send(task,
                                            dest=self.master,
@@ -518,7 +513,7 @@ class experiment_handling(object):
 
             # appending to hdf5 store, but only if the run is not
             # about to be terminated.
-
+            t_start = time.clock()
             for i, result in enumerate(run_func_result):
                 if not self.killer.kill_now:
                     try:
@@ -602,7 +597,7 @@ class experiment_handling(object):
                              tdf,
                              format='table',
                              data_columns=True)
-
+            print(f'saving took {time.clock() - t_start}', flush=True)
             return 1
 
         return store_func
