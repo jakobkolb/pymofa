@@ -604,10 +604,18 @@ class experiment_handling(object):
                                 # create dataframe of results with full index
                                 # and use convert objects to avoid
                                 # type casting errors that break writing to hd5
-                                mrfs = pd.DataFrame(data=result.values,
+                                try:
+                                    mrfs = pd.DataFrame(data=result.values,
                                                     index=mix,
                                                     columns=result.columns,
                                                     dtype=np.float)
+                                except ValueError:
+                                    print('could not convert values to float')
+                                    print('trying to save values as is')
+                                    mrfs = pd.DataFrame(data=result.values,
+                                                    index=mix,
+                                                    columns=result.columns)
+
 
                                 # write results to hd5
                                 store.append(f'dat_{i}',
