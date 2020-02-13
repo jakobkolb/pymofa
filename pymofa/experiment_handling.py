@@ -96,7 +96,7 @@ class experiment_handling(object):
                  parameter_combinations,
                  sample_size,
                  path_raw,
-                 min_itemsize=20,
+                 min_itemsize=None,
                  index=None):
         """
         Set up the experiment handling class.
@@ -559,10 +559,15 @@ class experiment_handling(object):
 
 
                                 # write results to hd5
+                                if self.min_itemsize is not None:
+                                    min_itemsize_dict = {key: self.min_itemsize
+                                                        for key in
+                                                         result.columns}
                                 store.append(f'dat_{i}',
                                              mrfs,
                                              format='table',
                                              index=False,
+                                             min_itemsize=min_itemsize_dict,
                                             # data_columns=True
                                             )
 
