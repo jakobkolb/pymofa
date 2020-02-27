@@ -563,6 +563,8 @@ class experiment_handling(object):
                                     min_itemsize_dict = {key: self.min_itemsize
                                                         for key in
                                                          result.columns}
+                                else:
+                                    min_itemsize_dict = None
                                 store.append(f'dat_{i}',
                                              mrfs,
                                              format='table',
